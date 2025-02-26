@@ -1,16 +1,6 @@
 const admin = require("firebase-admin");
 
-const key = process.env.FIREBASE_ADMIN_CONFIG;
-if (!key) {
-	throw new Error("FIREBASE_ADMIN_CONFIG is not set! Check your .env file.");
-}
 
-const privateKey = JSON.parse(key);
-
-admin.initializeApp({
-	credential: admin.credential.cert(privateKey),
-	databaseURL: "https://cochevia-default-rtdb.firebaseio.com",
-});
 
 const sendSingleNotification = async (token, title, description, tripId) => {
 	if (!token) {
