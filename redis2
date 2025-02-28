@@ -1,0 +1,119 @@
+const Redis = require("ioredis");
+const redisClient = new Redis();
+
+module.exports = (io) => {
+  io.on("connection", (socket) => {
+    socket.on("online", async (data) => {
+      const userId = data.userId;
+      const socketKey = `user:${userId}:sockets`;
+
+      // Add socket ID to Redis Set (to track multiple connections)
+      await redisClient.sadd(socketKey, socket.id);
+      
+      // Mark user as online
+      await redisClient.set(`user:${userId}:status`, "online", "EX", 600);
+    });
+
+    socket.on("disconnect", async () => {
+      let userId;
+      
+      // Find the user ID for this socket
+      const userKeys = await redisClient.keys("user:*:sockets");
+      for (let key of userKeys) {
+        const isMember = await redisClient.sismember(key, socket.id);
+        if (isMember) {
+          userId = key.split(":")[1]; // Extract user ID
+          await redisClient.srem(key, socket.id); // Remove socket from Redis Set
+          break;
+        }
+      }
+
+      if (!userId) return; // Safety check
+
+      // Check if user has any other active sockets
+      const remainingSockets = await redisClient.scard(`user:${userId}:sockets`);
+      if (remainingSockets === 0) {
+        await redisClient.del(`user:${userId}:sockets`); // Remove empty set
+        await redisClient.set(`user:${userId}:status`, "offline"); // Mark offline
+      }
+    });
+  });
+};
+
+
+
+
+GET all the active users
+import Redis from "ioredis";
+const redisClient = new Redis();
+
+export default async function handler(req, res) {
+  const keys = await redisClient.keys("user:*:status");
+  let onlineUsers = [];
+
+  for (let key of keys) {
+    const userId = key.split(":")[1]; // Extract user ID
+    const status = await redisClient.get(key);
+    if (status === "online") {
+      onlineUsers.push(userId);
+    }
+  }
+
+  res.json({ onlineUsers });
+}
+
+
+
+
+
+3️⃣ Emit Online/Offline Events to Clients
+Right now, users don't know when others go online/offline unless they manually refresh.
+Solution: Use socket.broadcast.emit() to notify all clients when a user changes status.
+
+Modify socketMiddleware.js
+socket.on("online", async (data) => {
+  const userId = data.userId;
+  const socketKey = `user:${userId}:sockets`;
+
+  await redisClient.sadd(socketKey, socket.id);
+  await redisClient.set(`user:${userId}:status`, "online", "EX", 600);
+
+  // Broadcast event to all users
+  socket.broadcast.emit("userStatusChange", { userId, status: "online" });
+});
+
+socket.on("disconnect", async () => {
+  // (Same logic as before...)
+
+  if (remainingSockets === 0) {
+    await redisClient.del(`user:${userId}:sockets`);
+    await redisClient.set(`user:${userId}:status`, "offline");
+
+    // Broadcast event to all users
+    socket.broadcast.emit("userStatusChange", { userId, status: "offline" });
+  }
+});
+
+
+
+
+????? For check what might be needed
+ const fetchStatus = async () => {
+      const response = await fetch(`/api/getUserStatus?userId=${userId}`);
+      const data = await response.json();
+      setStatus(data.status);
+    };
+
+    fetchStatus();
+
+    // Listen for real-time updates
+    socket.on("userStatusChange", ({ userId: changedUserId, status }) => {
+      if (changedUserId === userId) {
+        setStatus(status);
+      }
+    });
+
+    return () => {
+      socket.off("userStatusChange"); // Cleanup listener
+    };
+  }, [userId]);
