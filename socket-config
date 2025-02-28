@@ -1,0 +1,139 @@
+import 'dart:async';
+import 'package:cochevia/Utils/AppUrls.dart';
+import 'package:socket_io_client/socket_io_client.dart' as IO;
+
+class StreamSocket {
+  final _socketResponse = StreamController<dynamic>();
+
+  void Function(dynamic) get addResponse => _socketResponse.sink.add;
+
+  Stream<dynamic> get getResponse => _socketResponse.stream;
+
+  void dispose() {
+    _socketResponse.close();
+  }
+}
+
+class SocketManager {
+  static final SocketManager _instance = SocketManager._internal();
+
+  factory SocketManager() {
+    return _instance;
+  }
+
+  SocketManager._internal();
+
+  IO.Socket? _socket;
+  IO.Socket? get socket => _socket;
+  // Connect the socket dynamically
+  void connect(String tripId) {
+    if (_socket != null && _socket!.connected) {
+      print('Socket is already connected.');
+      return;
+    }
+
+    _socket = IO.io(
+      AppUrls.ip,
+      IO.OptionBuilder().setTransports(['websocket']).build(),
+    );
+
+    _socket!.connect();
+
+    _socket!.onAny(
+        (event, data) => print("Captured Event: $event,\n With Data: $data"));
+
+    _socket!.onConnect((_) {
+      print('Socket connected: ${_socket!.id}');
+      _socket!.emit('joinTripRoom', tripId); // Join the specific tripId room
+    });
+
+    _socket!.on('driverDetails', (data) {
+      print('Driver details event received: $data');
+      // Handle driverDetails logic
+    });
+
+    _socket!.onDisconnect((_) {
+      print('Socket disconnected');
+    });
+  }
+
+  // Disconnect the socket
+  void disconnect() {
+    if (_socket != null) {
+      _socket!.disconnect();
+      _socket = null;
+
+      print('Socket disconnected and instance cleared.');
+    }
+  }
+
+  // Check if the socket is connected
+  bool isConnected() {
+    return _socket != null && _socket!.connected;
+  }
+}
+
+
+
+
+
+
+// import 'package:flutter/material.dart';
+// import 'package:socket_io_client/socket_io_client.dart' as IO;
+
+// class TripServiceHelper with ChangeNotifier {
+//   late IO.Socket socket;
+
+//   // Initialize and connect the socket
+//   void connectSocket() {
+//     socket = IO.io('http://192.168.10.115:3000', <String, dynamic>{
+//       'transports': ['websocket'],
+//       'autoConnect': true,
+//     });
+
+//     socket.connect();
+
+//     socket.onConnect((_) {
+//       print('Connected to Socket.IO server');
+//     });
+
+//     socket.onDisconnect((_) {
+//       print('Disconnected from Socket.IO server');
+//     });
+
+//     socket.onConnectError((error) {
+//       print('Connection Error: $error');
+//     });
+//   }
+
+//   // Join a specific user room
+//   void joinUserRoom(String userId) {
+//     socket.emit('joinUserRoom', userId);
+//   }
+
+//   // Listen to 'tripUpdated' and notify listeners
+//   void listenTripUpdates(Function(Map<String, dynamic>) callback) {
+//     socket.on('tripUpdated', (data) {
+//       print('Trip updated: $data');
+//       callback(data); // Pass the data to the callback
+//     });
+//   }
+
+//   // Stop listening to 'tripUpdated'
+//   void removeTripUpdatesListener() {
+//     socket.off('tripUpdated');
+//   }
+
+//   // Listen to other events like 'joinUserRoom'
+//   void listenJoinUserRoom(Function(Map<String, dynamic>) callback) {
+//     socket.on('joinUserRoom', (data) {
+//       print('Join User Room: $data');
+//       callback(data); // Pass the data to the callback
+//     });
+//   }
+
+//   // Disconnect the socket
+//   void disconnectSocket() {
+//     socket.disconnect();
+//   }
+// }
