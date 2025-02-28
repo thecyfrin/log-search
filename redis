@@ -1,0 +1,41 @@
+const Redis = require("ioredis");
+const redisClient = new Redis();
+
+const onlineUsers = {}; // Track user connections { userId: [socketIds] }
+
+module.exports = (io) => {
+  io.on("connection", (socket) => {
+    socket.on("online", async (data) => {
+      const userId = data.userId;
+
+      // If user is already online, just track the new socket connection
+      if (!onlineUsers[userId]) {
+        onlineUsers[userId] = new Set();
+        await redisClient.set(`user:${userId}:status`, "online", "EX", 600);
+      }
+
+      onlineUsers[userId].add(socket.id);
+    });
+
+    socket.on("disconnect", async () => {
+      let userId;
+
+      // Find userId associated with the disconnected socket
+      for (const [uid, sockets] of Object.entries(onlineUsers)) {
+        if (sockets.has(socket.id)) {
+          userId = uid;
+          sockets.delete(socket.id);
+          break;
+        }
+      }
+
+      if (!userId) return;
+
+      // If user has no active sockets left, mark them offline
+      if (onlineUsers[userId].size === 0) {
+        delete onlineUsers[userId];
+        await redisClient.set(`user:${userId}:status`, "offline");
+      }
+    });
+  });
+};
