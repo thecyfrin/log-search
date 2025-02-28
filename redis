@@ -12,6 +12,7 @@ module.exports = (io) => {
       if (!onlineUsers[userId]) {
         onlineUsers[userId] = new Set();
         await redisClient.set(`user:${userId}:status`, "online", "EX", 600);
+        !!!update user isActive value to online;
       }
 
       onlineUsers[userId].add(socket.id);
@@ -35,6 +36,7 @@ module.exports = (io) => {
       if (onlineUsers[userId].size === 0) {
         delete onlineUsers[userId];
         await redisClient.set(`user:${userId}:status`, "offline");
+        !!!update user isActive value to offline;
       }
     });
   });
