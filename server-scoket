@@ -1,0 +1,76 @@
+const { Server } = require("socket.io");
+
+let io;
+
+const setupSocket = (server) => {
+	console.log(`User Setup`);
+	io = new Server(
+		server,
+		// { port: 3001 },
+		{
+			cors: {
+				// origin: "http://13.60.72.196:4001",
+				origin: "*", // Adjust the origin as needed for your setup
+				methods: ["GET", "POST"],
+				allowedHeaders: [`Access-Control-Allow-Origin`],
+			},
+			maxHttpBufferSize: 1e8,
+		}
+	);
+
+	io.on("connection", (socket) => {
+		console.log(`A user connected: ${socket.id}`);
+
+		// Join room for tripId
+		socket.on("joinTripRoom", (tripId) => {
+			console.log(`Sodcket ${socket.id} joined trip room: ${tripId}`);
+			socket.join(tripId); // Both driver and user join the same room
+		});
+
+		socket.on("joinChatRoom", (chatId) => {
+			console.log(`Socket ${socket.id} joined chat room: ${chatId}`);
+			socket.join(chatId);
+		});
+
+		socket.on("receiveChat", (data) => {
+			io.to(data.chatId).emit("chatDetails", data);
+		});
+
+		// Emit updates scoped to a trip room
+		socket.on("tripUpdate", ({ tripId, updatedFields }) => {
+			try {
+				if (!tripId) {
+					console.error("tripId is required for tripUpdate event");
+					return;
+				}
+
+				// Log the event for debugging
+				console.log(
+					`Trip update received for tripId: ${tripId}`,
+					updatedFields
+				);
+
+				// Emit to the specific trip room
+				io.to(tripId).emit("tripUpdated", { tripId, updatedFields });
+			} catch (error) {
+				console.error("Error emitting trip update:", error);
+			}
+		});
+
+		// Handle disconnection
+		socket.on("disconnect", () => {
+			console.log(`User disconnected: ${socket.id}`);
+		});
+	});
+
+	console.log("Socket.IO initialized");
+};
+
+const getIO = () => {
+	if (!io) {
+		throw new Error("Socket.io is not initialized!");
+	}
+	return io;
+};
+
+module.exports = { setupSocket, getIO };
